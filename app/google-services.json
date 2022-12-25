@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "760450554987-ta9gnu37fu59ugf1bgrbjsgdd62bkkb8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.android.weatherapp",
+            "certificate_hash": "c8a20f95bbce3a4751297117223dc4ee6f166aa5"
+          }
+        },
+        {
           "client_id": "760450554987-meopb30s81dm979al4d2peimtb8fmj4d.apps.googleusercontent.com",
           "client_type": 3
         }

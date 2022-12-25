@@ -1,6 +1,7 @@
 package com.android.weatherapp;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.RecyclerView;
@@ -8,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -29,6 +31,12 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.gms.common.api.Status;
+import com.google.android.libraries.places.api.Places;
+import com.google.android.libraries.places.api.model.Place;
+import com.google.android.libraries.places.widget.Autocomplete;
+import com.google.android.libraries.places.widget.AutocompleteActivity;
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.squareup.picasso.Picasso;
@@ -39,6 +47,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -72,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
         backIV = findViewById(R.id.idIVBack);
         iconIV = findViewById(R.id.idIVIcon);
         feelsLikeTV = findViewById(R.id.idTVFeelsLike);
-        ImageView searchIV = findViewById(R.id.idIVSearch);
         weatherRVModelArrayList = new ArrayList<>();
         weatherRVAdapter = new WeatherRVAdapter(this, weatherRVModelArrayList);
         weatherRV.setAdapter(weatherRVAdapter);
@@ -87,35 +95,29 @@ public class MainActivity extends AppCompatActivity {
             cityName = getCityName(location.getLongitude(), location.getLatitude());
         getWeatherInfo(cityName);
 
-        cityEdt.setOnEditorActionListener((v, actionId, event) -> {
-            boolean handled = false;
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                String city = Objects.requireNonNull(cityEdt.getText()).toString();
-                if (city.isEmpty()){
-                    Toast.makeText(MainActivity.this, "Please enter city name.", Toast.LENGTH_SHORT).show();
-                } else {
-                    cityNameTV.setText(cityName);
-                    getWeatherInfo(city);
-                }
-                handled = true;
-                InputMethodManager imm = (InputMethodManager)getSystemService(
-                        Context.INPUT_METHOD_SERVICE);
-                imm.hideSoftInputFromWindow(cityEdt.getWindowToken(), 0);
-                cityEdt.getText().clear();
-            }
-            return handled;
+        if (!Places.isInitialized()) {
+            Places.initialize(getApplicationContext(), getString(R.string.api_key), Locale.US);
+        }
+
+        cityEdt.setOnClickListener(v -> {
+            List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME);
+            Intent intent = new Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, fields)
+                    .build(this);
+            startActivityForResult(intent, 1);
         });
 
-        searchIV.setOnClickListener(view -> {
-            String city = Objects.requireNonNull(cityEdt.getText()).toString();
-            if (city.isEmpty()){
-                Toast.makeText(MainActivity.this, "Please enter city name.", Toast.LENGTH_SHORT).show();
-            } else {
-                cityNameTV.setText(cityName);
-                getWeatherInfo(city);
-                cityEdt.getText().clear();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if (requestCode == 1) {
+            if (resultCode == RESULT_OK) {
+                Place place = Autocomplete.getPlaceFromIntent(data);
+                getWeatherInfo(place.getName());
             }
-        });
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
