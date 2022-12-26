@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
@@ -32,6 +33,13 @@ import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.gms.common.api.Status;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.libraries.places.api.Places;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.android.libraries.places.widget.Autocomplete;
@@ -52,7 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private RelativeLayout homeRL;
     private ProgressBar loadingPB;
@@ -66,7 +74,10 @@ public class MainActivity extends AppCompatActivity {
     private String cityName;
     RecyclerView weatherRV;
     boolean doubleBackToExitPressedOnce = false;
+    GoogleMap map;
+    Location location;
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_CODE);
         }
 
-        Location location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
         if (cityName == null || cityName.isEmpty())
             cityName = getCityName(location.getLongitude(), location.getLatitude());
         getWeatherInfo(cityName);
@@ -99,11 +110,16 @@ public class MainActivity extends AppCompatActivity {
             Places.initialize(getApplicationContext(), getString(R.string.api_key), Locale.US);
         }
 
-        cityEdt.setOnClickListener(v -> {
-            List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+
+        cityEdt.setOnTouchListener((v, event) -> {
+            List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG);
             Intent intent = new Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, fields)
                     .build(this);
             startActivityForResult(intent, 1);
+            return false;
         });
 
     }
@@ -114,6 +130,14 @@ public class MainActivity extends AppCompatActivity {
             if (resultCode == RESULT_OK) {
                 Place place = Autocomplete.getPlaceFromIntent(data);
                 getWeatherInfo(place.getName());
+                if (map != null) {
+                    map.clear();
+                    map.addMarker(new MarkerOptions()
+                            .position(place.getLatLng()));
+                    CameraUpdate update = CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15);
+                    map.moveCamera(update);
+                    map.animateCamera(update);
+                }
             }
             return;
         }
@@ -214,5 +238,19 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, "Please click BACK again to exit", Toast.LENGTH_SHORT).show();
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> doubleBackToExitPressedOnce=false, 2000);
+    }
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        map = googleMap;
+        if (location != null) {
+            LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+            googleMap.clear();
+            googleMap.addMarker(new MarkerOptions()
+                    .position(latLng));
+            CameraUpdate update = CameraUpdateFactory.newLatLngZoom(latLng, 15);
+            googleMap.moveCamera(update);
+            googleMap.animateCamera(update);
+        }
     }
 }
