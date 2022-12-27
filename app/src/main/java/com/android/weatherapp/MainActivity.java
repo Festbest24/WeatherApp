@@ -2,16 +2,20 @@ package com.android.weatherapp;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -19,12 +23,13 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
+import android.widget.RemoteViews;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -32,7 +37,6 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
-import com.google.android.gms.common.api.Status;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -43,7 +47,6 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.libraries.places.api.Places;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.android.libraries.places.widget.Autocomplete;
-import com.google.android.libraries.places.widget.AutocompleteActivity;
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
@@ -54,18 +57,19 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public class MainActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private RelativeLayout homeRL;
     private ProgressBar loadingPB;
     private TextView cityNameTV, temperatureTV, conditionTV, feelsLikeTV;
-    private TextInputEditText cityEdt;
     private ImageView backIV;
     private ImageView iconIV;
     private ArrayList<WeatherRVModel> weatherRVModelArrayList;
@@ -76,6 +80,8 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     boolean doubleBackToExitPressedOnce = false;
     GoogleMap map;
     Location location;
+    Bitmap myBitmap;
+    Button logout;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -88,9 +94,10 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         temperatureTV = findViewById(R.id.idTVTemperature);
         conditionTV = findViewById(R.id.idTVCondition);
         weatherRV = findViewById(R.id.RVWeather);
-        cityEdt = findViewById(R.id.idEdtCity);
+        TextInputEditText cityEdt = findViewById(R.id.idEdtCity);
         backIV = findViewById(R.id.idIVBack);
         iconIV = findViewById(R.id.idIVIcon);
+        logout = findViewById(R.id.logout);
         feelsLikeTV = findViewById(R.id.idTVFeelsLike);
         weatherRVModelArrayList = new ArrayList<>();
         weatherRVAdapter = new WeatherRVAdapter(this, weatherRVModelArrayList);
@@ -106,20 +113,27 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             cityName = getCityName(location.getLongitude(), location.getLatitude());
         getWeatherInfo(cityName);
 
+        logout.setOnClickListener(v -> {
+            FirebaseAuth.getInstance().signOut();
+            startActivity(new Intent(this, Login.class));
+            finish();
+        });
+
         if (!Places.isInitialized()) {
             Places.initialize(getApplicationContext(), getString(R.string.api_key), Locale.US);
         }
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
 
-        cityEdt.setOnTouchListener((v, event) -> {
+        cityEdt.setOnClickListener(v -> {
             List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG);
             Intent intent = new Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, fields)
                     .build(this);
             startActivityForResult(intent, 1);
-            return false;
         });
 
     }
@@ -137,6 +151,7 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
                     CameraUpdate update = CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15);
                     map.moveCamera(update);
                     map.animateCamera(update);
+                    map.getUiSettings().setMapToolbarEnabled(false);
                 }
             }
             return;
@@ -218,6 +233,35 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
                 }
                 weatherRVAdapter.notifyDataSetChanged();
 
+                new Thread(() -> {
+                    InputStream in;
+                    try {
+                        URL url1 = new URL("https:".concat(conditionIcon));
+                        HttpURLConnection connection = (HttpURLConnection) url1.openConnection();
+                        connection.setDoInput(true);
+                        connection.connect();
+                        in = connection.getInputStream();
+                        myBitmap = BitmapFactory.decodeStream(in);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.push_noti);
+                    contentView.setImageViewBitmap(R.id.noti_img, myBitmap);
+                    contentView.setTextViewText(R.id.city_name, cityName);
+                    contentView.setTextViewText(R.id.city_weather, temperature+"°C | Feels Like " + feelsLike + "°C");
+
+                    NotificationChannel channel = new NotificationChannel("1", "Default", NotificationManager.IMPORTANCE_DEFAULT);
+                    NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    notificationManager.createNotificationChannel(channel);
+                    NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(MainActivity.this, "1")
+                            .setSmallIcon(R.drawable.weather)
+                            .setContent(contentView)
+                            .setAutoCancel(true)
+                            .setChannelId("1");
+                    notificationManager.notify(1, mBuilder.build());
+                }).start();
+
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -229,7 +273,6 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onBackPressed() {
         if (doubleBackToExitPressedOnce) {
-            FirebaseAuth.getInstance().signOut();
             finishAffinity();
             return;
         }
@@ -251,6 +294,7 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             CameraUpdate update = CameraUpdateFactory.newLatLngZoom(latLng, 15);
             googleMap.moveCamera(update);
             googleMap.animateCamera(update);
+            googleMap.getUiSettings().setMapToolbarEnabled(false);
         }
     }
 }

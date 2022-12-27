@@ -26,14 +26,24 @@
             android:src="@color/black_shade_1"
             android:id="@+id/idIVBack"/>
 
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/logout"
+            android:background="@android:color/transparent"
+            android:layout_alignParentEnd="true"
+            android:text="Logout"
+            android:layout_margin="5dp"
+            android:textAllCaps="false"/>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="CityName"
             android:textAlignment="center"
+            android:layout_below="@id/logout"
             android:gravity="center"
             android:textColor="@color/white"
-            android:layout_marginTop="30dp"
             android:id="@+id/idTVCityName"
             android:padding="20dp"
             android:textSize="18sp"/>
@@ -73,15 +83,14 @@
 
         <ImageView
             android:id="@+id/idIVIcon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:layout_below="@id/idTVTemperature"
             android:layout_centerHorizontal="true"
             android:layout_marginStart="10dp"
             android:layout_marginTop="10dp"
             android:layout_marginEnd="10dp"
-            android:layout_marginBottom="10dp"
-            android:src="@mipmap/ic_launcher" />
+            android:layout_marginBottom="10dp"/>
 
         <TextView
             android:id="@+id/idTVCondition"
